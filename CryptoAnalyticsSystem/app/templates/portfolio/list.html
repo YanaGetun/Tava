@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+
+{% block title %}Мои портфели{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mt-3 mb-4"><i class="bi bi-wallet2"></i> Мои портфели</h2>
+    
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Управление портфелями</h5>
+                    <button class="btn btn-light btn-sm" onclick="showCreatePortfolioModal()">
+                        <i class="bi bi-plus-circle"></i> Создать новый портфель
+                    </button>
+                </div>
+                <div class="card-body">
+                    <p>Здесь вы можете управлять своими инвестиционными портфелями, отслеживать их эффективность и вносить изменения.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        {% for portfolio in portfolios %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 portfolio-card">
+                <div class="card-header bg-{{ 'success' if portfolio.profit > 0 else 'danger' if portfolio.profit < 0 else 'secondary' }} text-white">
+                    <h5 class="mb-0">{{ portfolio.name }}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-3">
+                        <h3>${{ portfolio.value|round(2) }}</h3>
+                        <p class="mb-0">Общая стоимость</p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6>Доходность:</h6>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span>{{ portfolio.profit }}%</span>
+                            <span class="badge bg-{{ 'success' if portfolio.profit > 0 else 'danger' if portfolio.profit < 0 else 'secondary' }}">
+                                {% if portfolio.profit > 0 %}+{% endif %}{{ portfolio.profit }}%
+                            </span>
+                        </div>
+                        <div class="progress mt-2" style="height: 10px;">
+                            <div class="progress-bar bg-{{ 'success' if portfolio.profit > 0 else 'danger' if portfolio.profit < 0 else 'secondary' }}" 
+                                 style="width: {{ portfolio.profit|abs }}%"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6>Статистика:</h6>
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span>Активов:</span>
+                                <strong>{{ portfolio.assets|default(4) }}</strong>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span>Создан:</span>
+                                <strong>{{ portfolio.created|default('01.01.2024') }}</strong>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span>Риск:</span>
+                                <span class="badge bg-{{ 'success' if portfolio.id == 3 else 'warning' if portfolio.id == 1 else 'danger' }}">
+                                    {{ 'Низкий' if portfolio.id == 3 else 'Средний' if portfolio.id == 1 else 'Высокий' }}
+                                </span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('portfolio.portfolio_detail', portfolio_id=portfolio.id) }}" 
+                           class="btn btn-primary">
+                            <i class="bi bi-eye"></i> Просмотреть
+                        </a>
+                        <button class="btn btn-outline-secondary" onclick="showPortfolioActions({{ portfolio.id }})">
+                            <i class="bi bi-gear"></i> Управление
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Общая статистика</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h4>${{ portfolios|sum(attribute='value')|round(2) }}</h4>
+                            <p class="text-muted">Общая стоимость всех портфелей</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h4 class="{{ 'text-success' if (portfolios|sum(attribute='profit')/portfolios|length) > 0 else 'text-danger' }}">
+                                {{ (portfolios|sum(attribute='profit')/portfolios|length)|round(2) }}%
+                            </h4>
+                            <p class="text-muted">Средняя доходность</p>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <canvas id="portfolioChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-lightning-charge"></i> Быстрые действия</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-success" onclick="showCreatePortfolioModal()">
+                            <i class="bi bi-plus-circle"></i> Создать новый портфель
+                        </button>
+                        <button class="btn btn-primary" onclick="showRebalanceModal()">
+                            <i class="bi bi-arrow-left-right"></i> Ребалансировать портфели
+                        </button>
+                        <button class="btn btn-info" onclick="generatePortfolioReport()">
+                            <i class="bi bi-file-earmark-text"></i> Создать отчет
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="showPortfolioTemplates()">
+                            <i class="bi bi-collection"></i> Шаблоны портфелей
+                        </button>
+                    </div>
+                    
+                    <hr>
+                    
+                    <h6>Рекомендации:</h6>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item">
+                            <i class="bi bi-check-circle text-success"></i> Рассмотрите диверсификацию активов
+                        </li>
+                        <li class="list-group-item">
+                            <i class="bi bi-info-circle text-info"></i> Ребалансировка рекомендуется раз в квартал
+                        </li>
+                        <li class="list-group-item">
+                            <i class="bi bi-exclamation-triangle text-warning"></i> Высокорисковые активы превышают 30% портфеля
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно создания портфеля -->
+<div class="modal fade" id="createPortfolioModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-plus-circle"></i> Создание нового портфеля</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="portfolioForm">
+                    <div class="mb-3">
+                        <label for="portfolioName" class="form-label">Название портфеля</label>
+                        <input type="text" class="form-control" id="portfolioName" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="portfolioDescription" class="form-label">Описание</label>
+                        <textarea class="form-control" id="portfolioDescription" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="initialBalance" class="form-label">Начальный баланс ($)</label>
+                        <input type="number" class="form-control" id="initialBalance" value="10000" min="0" step="100">
+                    </div>
+                    <div class="mb-3">
+                        <label for="riskLevel" class="form-label">Уровень риска</label>
+                        <select class="form-select" id="riskLevel">
+                            <option value="low">Низкий (консервативный)</option>
+                            <option value="medium" selected>Средний (сбалансированный)</option>
+                            <option value="high">Высокий (агрессивный)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="strategy" class="form-label">Стратегия</label>
+                        <select class="form-select" id="strategy">
+                            <option value="growth">Ростовой портфель</option>
+                            <option value="income">Доходный портфель</option>
+                            <option value="balanced">Сбалансированный портфель</option>
+                            <option value="speculative">Спекулятивный портфель</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" onclick="createPortfolio()">Создать портфель</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Инициализация графика
+    initPortfolioChart();
+});
+
+function showCreatePortfolioModal() {
+    const modal = new bootstrap.Modal(document.getElementById('createPortfolioModal'));
+    modal.show();
+}
+
+function createPortfolio() {
+    const name = $('#portfolioName').val();
+    const description = $('#portfolioDescription').val();
+    const balance = $('#initialBalance').val();
+    const risk = $('#riskLevel').val();
+    const strategy = $('#strategy').val();
+    
+    if (!name) {
+        alert('Пожалуйста, введите название портфеля');
+        return;
+    }
+    
+    fetch('/portfolio/create', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            name: name,
+            description: description,
+            balance: parseFloat(balance),
+            risk: risk,
+            strategy: strategy
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Портфель успешно создан!');
+            bootstrap.Modal.getInstance(document.getElementById('createPortfolioModal')).hide();
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        } else {
+            alert('Ошибка при создании портфеля');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Ошибка при создании портфеля');
+    });
+}
+
+function showPortfolioActions(portfolioId) {
+    alert(`Управление портфелем #${portfolioId}\nВ реальной системе здесь было бы меню действий`);
+}
+
+function showRebalanceModal() {
+    alert('Рекомендации по ребалансировке:\n1. Увеличить долю BTC до 40%\n2. Уменьшить долю альткоинов\n3. Добавить стейблкоины для хеджирования');
+}
+
+function generatePortfolioReport() {
+    alert('Отчет по портфелям генерируется...\nВ реальной системе здесь был бы PDF отчет');
+}
+
+function showPortfolioTemplates() {
+    alert('Доступные шаблоны портфелей:\n1. Консервативный (70% BTC, 30% ETH)\n2. Сбалансированный (50% BTC, 30% ETH, 20% альты)\n3. Агрессивный (30% BTC, 70% альты)');
+}
+
+function initPortfolioChart() {
+    const ctx = document.getElementById('portfolioChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: ['Основной портфель', 'Агрессивный', 'Консервативный'],
+            datasets: [{
+                data: [12500, 8500, 22000],
+                backgroundColor: ['#007bff', '#28a745', '#ffc107']
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+}
+</script>
+
+<style>
+.portfolio-card {
+    transition: transform 0.3s;
+}
+.portfolio-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+</style>
+{% endblock %}

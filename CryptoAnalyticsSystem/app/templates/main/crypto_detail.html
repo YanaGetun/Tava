@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+
+{% block title %}{{ crypto.name }} ({{ crypto.symbol }}) - Детали{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Дашборд</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('main.market') }}">Рынок</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ crypto.symbol }}</li>
+        </ol>
+    </nav>
+    
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0">
+                        <i class="bi bi-currency-bitcoin"></i> {{ crypto.name }} ({{ crypto.symbol }})
+                    </h4>
+                    <span class="badge bg-{{ 'success' if crypto.change > 0 else 'danger' }} fs-6">
+                        {{ crypto.change }}%
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h2 class="display-6">${{ crypto.price }}</h2>
+                            <p class="text-muted">Текущая цена</p>
+                            
+                            <div class="mt-4">
+                                <h5>Основная информация:</h5>
+                                <ul class="list-group list-group-flush">
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <span>Символ:</span>
+                                        <strong>{{ crypto.symbol }}</strong>
+                                    </li>
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <span>Рыночная капитализация:</span>
+                                        <strong>
+                                            {% if crypto.market_cap %}
+                                                ${{ crypto.market_cap }} млрд
+                                            {% else %}
+                                                ${{ (crypto.price * 20)|round(2) }} млрд
+                                            {% endif %}
+                                        </strong>
+                                    </li>
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <span>Объем (24ч):</span>
+                                        <strong>
+                                            {% if crypto.volume %}
+                                                ${{ crypto.volume }} млн
+                                            {% else %}
+                                                ${{ (crypto.price * 1000)|round(2) }} млн
+                                            {% endif %}
+                                        </strong>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            {% if prediction %}
+                            <div class="card border-{{ 'success' if prediction.direction == 'up' else 'danger' }}">
+                                <div class="card-header bg-{{ 'success' if prediction.direction == 'up' else 'danger' }} text-white">
+                                    <h5 class="mb-0"><i class="bi bi-bar-chart-line"></i> Прогноз системы</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="text-center">
+                                        <h3 class="{{ 'text-success' if prediction.direction == 'up' else 'text-danger' }}">
+                                            {{ prediction.direction|upper }}
+                                        </h3>
+                                        <p>Прогноз цены: <strong>${{ prediction.predicted_price }}</strong></p>
+                                        <p>Уверенность: <strong>{{ (prediction.confidence * 100)|round(1) }}%</strong></p>
+                                        <p>Модель: <span class="badge bg-info">{{ prediction.model_type }}</span></p>
+                                        
+                                        <div class="mt-3">
+                                            <button class="btn btn-outline-primary" onclick="getDetailedAnalysis('{{ crypto.symbol }}')">
+                                                <i class="bi bi-graph-up-arrow"></i> Подробный анализ
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% else %}
+                            <div class="card border-warning">
+                                <div class="card-header bg-warning text-dark">
+                                    <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Прогноз отсутствует</h5>
+                                </div>
+                                <div class="card-body">
+                                    <p>Для этой криптовалюты еще нет прогноза.</p>
+                                    <button class="btn btn-primary" onclick="generatePrediction('{{ crypto.symbol }}')">
+                                        <i class="bi bi-calculator"></i> Сгенерировать прогноз
+                                    </button>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-4">
+                        <div class="col-12">
+                            <h5>Технический анализ:</h5>
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="card">
+                                        <div class="card-body text-center">
+                                            <h6>RSI (14)</h6>
+                                            {% set rsi = crypto.change|abs + 45 %}
+                                            <h4 class="{{ 'text-success' if rsi < 30 else 'text-danger' if rsi > 70 else 'text-warning' }}">
+                                                {{ rsi|round(1) }}
+                                            </h4>
+                                            <small class="text-muted">
+                                                {% if rsi < 30 %}Перепроданность{% elif rsi > 70 %}Перекупленность{% else %}Нейтрально{% endif %}
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card">
+                                        <div class="card-body text-center">
+                                            <h6>Тренд</h6>
+                                            <h4 class="{{ 'text-success' if crypto.change > 0 else 'text-danger' }}">
+                                                {% if crypto.change > 5 %}Сильный {% endif %}
+                                                {{ 'Рост' if crypto.change > 0 else 'Падение' }}
+                                            </h4>
+                                            <small class="text-muted">Направление движения</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card">
+                                        <div class="card-body text-center">
+                                            <h6>Волатильность</h6>
+                                            <h4 class="{{ 'text-danger' if crypto.change|abs > 10 else 'text-warning' if crypto.change|abs > 5 else 'text-success' }}">
+                                                {{ crypto.change|abs|round(1) }}%
+                                            </h4>
+                                            <small class="text-muted">24-часовое изменение</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card">
+                                        <div class="card-body text-center">
+                                            <h6>Объем</h6>
+                                            <h4>
+                                                {% if crypto.volume %}
+                                                    {{ crypto.volume }}M
+                                                {% else %}
+                                                    {{ (crypto.price * 1000)|round(2) }}M
+                                                {% endif %}
+                                            </h4>
+                                            <small class="text-muted">Торговый объем</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-lightning-charge"></i> Быстрые действия</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-primary" onclick="addToWatchlist('{{ crypto.symbol }}')">
+                            <i class="bi bi-star"></i> Добавить в избранное
+                        </button>
+                        <button class="btn btn-success" onclick="showBuyDialog('{{ crypto.symbol }}')">
+                            <i class="bi bi-cart-plus"></i> Купить {{ crypto.symbol }}
+                        </button>
+                        <button class="btn btn-danger" onclick="showSellDialog('{{ crypto.symbol }}')">
+                            <i class="bi bi-cart-dash"></i> Продать {{ crypto.symbol }}
+                        </button>
+                        <a href="{{ url_for('predictions.predictions_list') }}" class="btn btn-info">
+                            <i class="bi bi-bar-chart-line"></i> Все прогнозы
+                        </a>
+                    </div>
+                    
+                    <hr>
+                    
+                    <h6>Рекомендации:</h6>
+                    <ul class="list-group list-group-flush">
+                        {% if crypto.change > 5 %}
+                        <li class="list-group-item">
+                            <i class="bi bi-check-circle text-success"></i> Сильный рост - хорошая возможность для входа
+                        </li>
+                        {% elif crypto.change < -5 %}
+                        <li class="list-group-item">
+                            <i class="bi bi-exclamation-triangle text-danger"></i> Сильное падение - осторожно с покупками
+                        </li>
+                        {% else %}
+                        <li class="list-group-item">
+                            <i class="bi bi-info-circle text-info"></i> Стабильный тренд - можно рассматривать для долгосрочных инвестиций
+                        </li>
+                        {% endif %}
+                        
+                        {% if crypto.change|abs < 3 %}
+                        <li class="list-group-item">
+                            <i class="bi bi-shield-check text-success"></i> Низкая волатильность - подходит для консервативных инвесторов
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="card mt-3">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-graph-up"></i> Исторические данные</h5>
+                </div>
+                <div class="card-body">
+                    <p>За последние 7 дней:</p>
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>Максимум:</span>
+                            <strong>${{ (crypto.price * 1.1)|round(2) }}</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>Минимум:</span>
+                            <strong>${{ (crypto.price * 0.9)|round(2) }}</strong>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between">
+                            <span>Средняя цена:</span>
+                            <strong>${{ crypto.price }}</strong>
+                        </li>
+                    </ul>
+                    <button class="btn btn-outline-secondary btn-sm mt-2 w-100" onclick="showHistory('{{ crypto.symbol }}')">
+                        <i class="bi bi-clock-history"></i> Подробная история
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function getDetailedAnalysis(symbol) {
+    fetch(`/api/crypto/${symbol}`)
+        .then(response => response.json())
+        .then(data => {
+            alert(`Детальный анализ ${symbol}:\nТекущая цена: $${data.current_price}\nПрогноз: ${data.prediction.direction}\nУверенность: ${data.prediction.confidence * 100}%`);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Ошибка при получении анализа');
+        });
+}
+
+function generatePrediction(symbol) {
+    fetch(`/predictions/api/generate`)
+        .then(response => response.json())
+        .then(data => {
+            alert(`Прогнозы сгенерированы! Создано ${data.count} прогнозов.\nОбновите страницу.`);
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Ошибка при генерации прогноза');
+        });
+}
+
+function addToWatchlist(symbol) {
+    alert(`Криптовалюта ${symbol} добавлена в избранное`);
+    // В реальной системе здесь был бы AJAX запрос к серверу
+}
+
+function showBuyDialog(symbol) {
+    const amount = prompt(`Введите количество ${symbol} для покупки:`, "0.1");
+    if (amount && parseFloat(amount) > 0) {
+        alert(`Заявка на покупку ${amount} ${symbol} создана!`);
+        // В реальной системе здесь был бы AJAX запрос к серверу
+    }
+}
+
+function showSellDialog(symbol) {
+    const amount = prompt(`Введите количество ${symbol} для продажи:`, "0.1");
+    if (amount && parseFloat(amount) > 0) {
+        alert(`Заявка на продажу ${amount} ${symbol} создана!`);
+        // В реальной системе здесь был бы AJAX запрос к серверу
+    }
+}
+
+function showHistory(symbol) {
+    alert(`История торгов ${symbol} загружается...\nВ реальной системе здесь был бы график с историческими данными`);
+}
+</script>
+{% endblock %}

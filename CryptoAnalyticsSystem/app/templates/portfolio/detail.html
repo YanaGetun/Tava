@@ -1,0 +1,433 @@
+{% extends "base.html" %}
+
+{% block title %}{{ portfolio.name }} - Детали{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('main.dashboard') }}">Дашборд</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('portfolio.portfolio_list') }}">Портфели</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ portfolio.name }}</li>
+        </ol>
+    </nav>
+    
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h4 class="mb-0"><i class="bi bi-wallet2"></i> {{ portfolio.name }}</h4>
+                    <div>
+                        <span class="badge bg-light text-dark fs-6">ID: {{ portfolio.id }}</span>
+                        <button class="btn btn-light btn-sm ms-2" onclick="showEditPortfolioModal()">
+                            <i class="bi bi-pencil"></i> Редактировать
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h2 class="display-6">${{ portfolio.total_value|round(2) }}</h2>
+                            <p class="text-muted">Общая стоимость портфеля</p>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <h6>Доходность портфеля</h6>
+                                    <h4 class="{{ 'text-success' if portfolio.total_value > 30000 else 'text-danger' }}">
+                                        {{ ((portfolio.total_value - 30000) / 30000 * 100)|round(2) }}%
+                                    </h4>
+                                    <small class="text-muted">С момента создания</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h5 class="mb-3">Активы портфеля:</h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Актив</th>
+                                    <th>Количество</th>
+                                    <th>Стоимость</th>
+                                    <th>Доля в портфеле</th>
+                                    <th>Средняя цена</th>
+                                    <th>Текущая цена</th>
+                                    <th>Прибыль/Убыток</th>
+                                    <th>Действия</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for asset in assets %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ asset.symbol }}</strong>
+                                        <br>
+                                        <small class="text-muted">
+                                            {% if asset.symbol == 'BTC' %}Bitcoin
+                                            {% elif asset.symbol == 'ETH' %}Ethereum
+                                            {% elif asset.symbol == 'BNB' %}Binance Coin
+                                            {% else %}Tether USD
+                                            {% endif %}
+                                        </small>
+                                    </td>
+                                    <td>{{ asset.amount }}</td>
+                                    <td>${{ asset.value|round(2) }}</td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="progress flex-grow-1 me-2" style="height: 10px;">
+                                                <div class="progress-bar" style="width: {{ asset.allocation }}%"></div>
+                                            </div>
+                                            <span>{{ asset.allocation }}%</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if asset.symbol != 'USDT' %}
+                                            ${{ (asset.value / asset.amount * 0.95)|round(2) }}
+                                        {% else %}
+                                            $1.00
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if asset.symbol == 'BTC' %}$45000
+                                        {% elif asset.symbol == 'ETH' %}$3000
+                                        {% elif asset.symbol == 'BNB' %}$350
+                                        {% else %}$1.00
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if asset.symbol != 'USDT' %}
+                                            {% set profit = ((asset.value / (asset.value / asset.amount * 0.95) / asset.amount - 1) * 100)|round(2) %}
+                                            <span class="{{ 'text-success' if profit > 0 else 'text-danger' }}">
+                                                {{ profit }}%
+                                            </span>
+                                        {% else %}
+                                            <span class="text-muted">0%</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm" role="group">
+                                            <button class="btn btn-outline-success" onclick="buyAsset('{{ asset.symbol }}')">
+                                                <i class="bi bi-plus"></i>
+                                            </button>
+                                            <button class="btn btn-outline-danger" onclick="sellAsset('{{ asset.symbol }}')">
+                                                <i class="bi bi-dash"></i>
+                                            </button>
+                                            <button class="btn btn-outline-info" onclick="showAssetDetails('{{ asset.symbol }}')">
+                                                <i class="bi bi-info-circle"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="row mt-4">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header bg-info text-white">
+                                    <h6 class="mb-0"><i class="bi bi-pie-chart"></i> Распределение активов</h6>
+                                </div>
+                                <div class="card-body">
+                                    <canvas id="allocationChart" width="300" height="200"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header bg-warning text-dark">
+                                    <h6 class="mb-0"><i class="bi bi-shield-check"></i> Оценка риска</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <h6>Уровень риска: <span class="badge bg-danger">Высокий</span></h6>
+                                        <div class="progress" style="height: 10px;">
+                                            <div class="progress-bar bg-danger" style="width: 75%"></div>
+                                        </div>
+                                    </div>
+                                    <ul class="list-group list-group-flush">
+                                        <li class="list-group-item">
+                                            <i class="bi bi-check-circle text-success"></i> Диверсификация: 4 актива
+                                        </li>
+                                        <li class="list-group-item">
+                                            <i class="bi bi-exclamation-triangle text-warning"></i> Доля BTC: 35% (рекомендуется 40-60%)
+                                        </li>
+                                        <li class="list-group-item">
+                                            <i class="bi bi-exclamation-triangle text-danger"></i> Высокая доля альткоинов
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-lightning-charge"></i> Быстрые действия</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-primary" onclick="showAddAssetModal()">
+                            <i class="bi bi-plus-circle"></i> Добавить актив
+                        </button>
+                        <button class="btn btn-success" onclick="showOptimizeModal()">
+                            <i class="bi bi-magic"></i> Оптимизировать портфель
+                        </button>
+                        <button class="btn btn-info" onclick="generatePortfolioReport()">
+                            <i class="bi bi-file-earmark-text"></i> Создать отчет
+                        </button>
+                        <button class="btn btn-warning" onclick="showRebalanceModal()">
+                            <i class="bi bi-arrow-left-right"></i> Ребалансировать
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="bi bi-graph-up"></i> Производительность</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <h6>Доходность за период:</h6>
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="card bg-light">
+                                    <div class="card-body p-2">
+                                        <small>За день</small>
+                                        <h6 class="mb-0 text-success">+1.2%</h6>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="card bg-light">
+                                    <div class="card-body p-2">
+                                        <small>За неделю</small>
+                                        <h6 class="mb-0 text-danger">-0.8%</h6>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="card bg-light">
+                                    <div class="card-body p-2">
+                                        <small>За месяц</small>
+                                        <h6 class="mb-0 text-success">+5.4%</h6>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <h6>Показатели риска:</h6>
+                        <ul class="list-group list-group-flush">
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span>Волатильность:</span>
+                                <span class="text-warning">Высокая</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span>Sharpe Ratio:</span>
+                                <span class="text-success">1.45</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between">
+                                <span>Max Drawdown:</span>
+                                <span class="text-danger">-12.3%</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="bi bi-lightbulb"></i> Рекомендации системы</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item">
+                            <i class="bi bi-check-circle text-success"></i> Увеличить долю BTC до 40%
+                        </li>
+                        <li class="list-group-item">
+                            <i class="bi bi-check-circle text-success"></i> Добавить стейблкоины (5-10%)
+                        </li>
+                        <li class="list-group-item">
+                            <i class="bi bi-exclamation-triangle text-warning"></i> Снизить долю BNB до 20%
+                        </li>
+                        <li class="list-group-item">
+                            <i class="bi bi-info-circle text-info"></i> Рассмотреть добавление SOL для диверсификации
+                        </li>
+                    </ul>
+                    <button class="btn btn-outline-primary btn-sm w-100 mt-3" onclick="applyRecommendations()">
+                        <i class="bi bi-check-all"></i> Применить все рекомендации
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0"><i class="bi bi-clock-history"></i> История транзакций</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Дата</th>
+                                    <th>Тип</th>
+                                    <th>Актив</th>
+                                    <th>Количество</th>
+                                    <th>Цена</th>
+                                    <th>Сумма</th>
+                                    <th>Статус</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>2024-01-15 14:30</td>
+                                    <td><span class="badge bg-success">Покупка</span></td>
+                                    <td>BTC</td>
+                                    <td>0.25</td>
+                                    <td>$44,000</td>
+                                    <td>$11,000</td>
+                                    <td><span class="badge bg-success">Завершено</span></td>
+                                </tr>
+                                <tr>
+                                    <td>2024-01-10 11:15</td>
+                                    <td><span class="badge bg-success">Покупка</span></td>
+                                    <td>ETH</td>
+                                    <td>3.5</td>
+                                    <td>$2,800</td>
+                                    <td>$9,800</td>
+                                    <td><span class="badge bg-success">Завершено</span></td>
+                                </tr>
+                                <tr>
+                                    <td>2024-01-05 09:45</td>
+                                    <td><span class="badge bg-success">Покупка</span></td>
+                                    <td>BNB</td>
+                                    <td>25</td>
+                                    <td>$320</td>
+                                    <td>$8,000</td>
+                                    <td><span class="badge bg-success">Завершено</span></td>
+                                </tr>
+                                <tr>
+                                    <td>2024-01-01 16:20</td>
+                                    <td><span class="badge bg-primary">Депозит</span></td>
+                                    <td>USDT</td>
+                                    <td>1500</td>
+                                    <td>$1.00</td>
+                                    <td>$1,500</td>
+                                    <td><span class="badge bg-success">Завершено</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    // Инициализация графика распределения
+    initAllocationChart();
+});
+
+function initAllocationChart() {
+    const ctx = document.getElementById('allocationChart').getContext('2d');
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['BTC', 'ETH', 'BNB', 'USDT'],
+            datasets: [{
+                data: [35, 33, 27, 5],
+                backgroundColor: ['#f7931a', '#627eea', '#f0b90b', '#26a17b']
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+}
+
+function showEditPortfolioModal() {
+    alert('Редактирование портфеля\nВ реальной системе здесь было бы модальное окно');
+}
+
+function showAddAssetModal() {
+    const asset = prompt('Введите символ криптовалюты для добавления:', 'SOL');
+    if (asset) {
+        const amount = prompt(`Введите количество ${asset}:`, '10');
+        if (amount && parseFloat(amount) > 0) {
+            alert(`Актив ${asset} добавлен в портфель!\nКоличество: ${amount}`);
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        }
+    }
+}
+
+function showOptimizeModal() {
+    alert('Оптимизация портфеля\nСистема рекомендует:\n1. Увеличить BTC до 40%\n2. Уменьшить BNB до 20%\n3. Добавить 5% стейблкоинов');
+}
+
+function generatePortfolioReport() {
+    alert('Отчет по портфелю генерируется...\nВ реальной системе здесь был бы PDF с детальной аналитикой');
+}
+
+function showRebalanceModal() {
+    alert('Рекомендации по ребалансировке:\nПродать 5% BNB ($437.5)\nКупить 5% BTC ($1,600)\nОбщая комиссия: ~$20');
+}
+
+function buyAsset(symbol) {
+    const amount = prompt(`Введите количество ${symbol} для покупки:`, '0.1');
+    if (amount && parseFloat(amount) > 0) {
+        alert(`Заявка на покупку ${amount} ${symbol} создана!`);
+    }
+}
+
+function sellAsset(symbol) {
+    const amount = prompt(`Введите количество ${symbol} для продажи:`, '0.1');
+    if (amount && parseFloat(amount) > 0) {
+        alert(`Заявка на продажу ${amount} ${symbol} создана!`);
+    }
+}
+
+function showAssetDetails(symbol) {
+    window.location.href = `/crypto/${symbol}`;
+}
+
+function applyRecommendations() {
+    if (confirm('Применить все рекомендации системы?')) {
+        alert('Рекомендации применены! Портфель будет оптимизирован.');
+        setTimeout(() => {
+            location.reload();
+        }, 1500);
+    }
+}
+</script>
+
+<style>
+.progress {
+    background-color: #e9ecef;
+}
+.progress-bar {
+    background-color: #007bff;
+}
+</style>
+{% endblock %}

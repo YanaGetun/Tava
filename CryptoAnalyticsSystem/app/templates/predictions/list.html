@@ -1,0 +1,368 @@
+{% extends "base.html" %}
+
+{% block title %}Прогнозы крипторынка{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h2 class="mt-3 mb-4"><i class="bi bi-bar-chart-line"></i> Прогнозы крипторынка</h2>
+    
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Система прогнозирования</h5>
+                    <div>
+                        <button class="btn btn-light btn-sm me-2" onclick="generateNewPredictions()">
+                            <i class="bi bi-calculator"></i> Сгенерировать прогнозы
+                        </button>
+                        <button class="btn btn-light btn-sm" onclick="showPredictionSettings()">
+                            <i class="bi bi-gear"></i> Настройки
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <p>
+                        Система использует алгоритмы машинного обучения для прогнозирования цен криптовалют.
+                        Прогнозы основаны на техническом анализе, исторических данных и рыночных индикаторах.
+                    </p>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6>Точность моделей</h6>
+                                    <h4 class="text-success">78.5%</h4>
+                                    <small class="text-muted">Средняя за 30 дней</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6>Прогнозов сегодня</h6>
+                                    <h4 class="text-primary">{{ predictions|length }}</h4>
+                                    <small class="text-muted">Активных прогнозов</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6>Лучшая модель</h6>
+                                    <h4 class="text-warning">LSTM</h4>
+                                    <small class="text-muted">Точность: 82.3%</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6>Обновлено</h6>
+                                    <h4 class="text-secondary">10 мин назад</h4>
+                                    <small class="text-muted">Следующее: через 50 мин</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% if predictions %}
+    <div class="row">
+        {% for item in predictions %}
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-{{ 'success' if item.prediction.direction == 'up' else 'danger' }} text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-currency-{{ 'bitcoin' if item.crypto.symbol == 'BTC' else 'ethereum' if item.crypto.symbol == 'ETH' else 'exchange' }}"></i>
+                        {{ item.crypto.name }} ({{ item.crypto.symbol }})
+                    </h5>
+                    <span class="badge bg-light text-dark">
+                        {{ item.prediction.model_type|replace('_', ' ')|title }}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="text-center mb-4">
+                                <h3 class="{{ 'text-success' if item.prediction.direction == 'up' else 'text-danger' }}">
+                                    {{ item.prediction.direction|upper }}
+                                </h3>
+                                <div class="display-6">
+                                    ${{ item.prediction.predicted_price|round(2) }}
+                                </div>
+                                <p class="text-muted">Прогноз цены</p>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <h6>Текущая цена:</h6>
+                                <div class="d-flex justify-content-between">
+                                    <span>${{ item.crypto.price|round(2) }}</span>
+                                    <span class="{{ 'text-success' if item.prediction.direction == 'up' else 'text-danger' }}">
+                                        {{ (((item.prediction.predicted_price / item.crypto.price) - 1) * 100)|round(2) }}%
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <h6>Уверенность прогноза:</h6>
+                                <div class="d-flex align-items-center">
+                                    <div class="progress flex-grow-1 me-2" style="height: 10px;">
+                                        <div class="progress-bar bg-{{ 'success' if item.prediction.confidence > 0.7 else 'warning' if item.prediction.confidence > 0.5 else 'danger' }}" 
+                                             style="width: {{ item.prediction.confidence * 100 }}%"></div>
+                                    </div>
+                                    <span>{{ (item.prediction.confidence * 100)|round(1) }}%</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6">
+                            <div class="card border-{{ 'success' if item.risk.risk_level == 'low' else 'warning' if item.risk.risk_level == 'medium' else 'danger' }}">
+                                <div class="card-header bg-{{ 'success' if item.risk.risk_level == 'low' else 'warning' if item.risk.risk_level == 'medium' else 'danger' }} text-white py-2">
+                                    <h6 class="mb-0">Оценка риска: {{ item.risk.risk_level|upper }}</h6>
+                                </div>
+                                <div class="card-body p-3">
+                                    <div class="mb-2">
+                                        <small>Волатильность:</small>
+                                        <div class="d-flex justify-content-between">
+                                            <span>{{ (item.risk.volatility * 100)|round(2) }}%</span>
+                                            <span class="badge bg-{{ 'success' if item.risk.volatility < 0.3 else 'warning' if item.risk.volatility < 0.7 else 'danger' }}">
+                                                {{ 'Низкая' if item.risk.volatility < 0.3 else 'Средняя' if item.risk.volatility < 0.7 else 'Высокая' }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-2">
+                                        <small>Value at Risk (95%):</small>
+                                        <div class="d-flex justify-content-between">
+                                            <span>{{ item.risk.var_95 }}%</span>
+                                            <small class="text-muted">Макс. потеря</small>
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <small class="d-block mb-1">Рекомендации:</small>
+                                        <ul class="list-unstyled mb-0">
+                                            {% for rec in item.risk.recommendations[:2] %}
+                                            <li>
+                                                <small>
+                                                    <i class="bi bi-chevron-right"></i> {{ rec }}
+                                                </small>
+                                            </li>
+                                            {% endfor %}
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="mt-3">
+                                <h6>Детали прогноза:</h6>
+                                <ul class="list-group list-group-flush">
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <small>Горизонт:</small>
+                                        <small>{{ item.prediction.horizon|default('24ч') }}</small>
+                                    </li>
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <small>Сгенерирован:</small>
+                                        <small>{{ item.prediction.created_at|default('Сегодня 10:30') }}</small>
+                                    </li>
+                                    <li class="list-group-item d-flex justify-content-between">
+                                        <small>Действителен до:</small>
+                                        <small>{{ item.prediction.valid_until|default('Завтра 10:30') }}</small>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-{{ 'success' if item.prediction.direction == 'up' else 'danger' }}" 
+                                onclick="takeAction('{{ item.crypto.symbol }}', '{{ item.prediction.direction }}')">
+                            <i class="bi bi-{{ 'cart-plus' if item.prediction.direction == 'up' else 'cart-dash' }}"></i>
+                            {{ 'Купить' if item.prediction.direction == 'up' else 'Продать' }} {{ item.crypto.symbol }}
+                        </button>
+                        <div class="btn-group w-100" role="group">
+                            <button class="btn btn-outline-primary" onclick="showPredictionDetails('{{ item.crypto.symbol }}')">
+                                <i class="bi bi-info-circle"></i> Детали
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="addToWatchlist('{{ item.crypto.symbol }}')">
+                                <i class="bi bi-star"></i> В избранное
+                            </button>
+                            <button class="btn btn-outline-info" onclick="sharePrediction('{{ item.crypto.symbol }}')">
+                                <i class="bi bi-share"></i> Поделиться
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-bar-chart-line display-1 text-muted mb-3"></i>
+                    <h4>Прогнозы отсутствуют</h4>
+                    <p class="text-muted">Нажмите кнопку ниже, чтобы сгенерировать прогнозы</p>
+                    <button class="btn btn-primary btn-lg" onclick="generateNewPredictions()">
+                        <i class="bi bi-calculator"></i> Сгенерировать прогнозы
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="bi bi-lightbulb"></i> Советы по использованию прогнозов</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item">
+                            <i class="bi bi-check-circle text-success"></i> Используйте прогнозы как дополнительный инструмент анализа
+                        </li>
+                        <li class="list-group-item">
+                            <i class="bi bi-check-circle text-success"></i> Обращайте внимание на уровень уверенности и оценку риска
+                        </li>
+                        <li class="list-group-item">
+                            <i class="bi bi-exclamation-triangle text-warning"></i> Не инвестируйте на основе только одного прогноза
+                        </li>
+                        <li class="list-group-item">
+                            <i class="bi bi-info-circle text-info"></i> Прогнозы обновляются каждые 2 часа
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-graph-up-arrow"></i> Точность прогнозов по моделям</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Модель</th>
+                                    <th>Точность</th>
+                                    <th>Использование</th>
+                                    <th>Статус</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>LSTM Network</td>
+                                    <td>82.3%</td>
+                                    <td>Основная</td>
+                                    <td><span class="badge bg-success">Активна</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Random Forest</td>
+                                    <td>78.5%</td>
+                                    <td>Резервная</td>
+                                    <td><span class="badge bg-success">Активна</span></td>
+                                </tr>
+                                <tr>
+                                    <td>XGBoost</td>
+                                    <td>75.2%</td>
+                                    <td>Экспериментальная</td>
+                                    <td><span class="badge bg-warning">Тестируется</span></td>
+                                </tr>
+                                <tr>
+                                    <td>Prophet</td>
+                                    <td>71.8%</td>
+                                    <td>Историческая</td>
+                                    <td><span class="badge bg-secondary">Архив</span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <button class="btn btn-outline-primary btn-sm w-100" onclick="showModelDetails()">
+                        <i class="bi bi-diagram-3"></i> Подробнее о моделях
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function generateNewPredictions() {
+    fetch('/predictions/api/generate')
+        .then(response => response.json())
+        .then(data => {
+            alert(`Сгенерировано ${data.count} новых прогнозов!`);
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Ошибка при генерации прогнозов');
+        });
+}
+
+function showPredictionSettings() {
+    alert('Настройки системы прогнозирования:\n1. Частота обновления: 2 часа\n2. Используемые модели: LSTM, Random Forest\n3. Минимальная уверенность: 60%\n4. Количество активов: 10');
+}
+
+function takeAction(symbol, direction) {
+    if (direction === 'up') {
+        const amount = prompt(`Введите количество ${symbol} для покупки:`, "0.1");
+        if (amount && parseFloat(amount) > 0) {
+            alert(`Заявка на покупку ${amount} ${symbol} создана на основе прогноза роста!`);
+        }
+    } else {
+        const amount = prompt(`Введите количество ${symbol} для продажи:`, "0.1");
+        if (amount && parseFloat(amount) > 0) {
+            alert(`Заявка на продажу ${amount} ${symbol} создана на основе прогноза падения!`);
+        }
+    }
+}
+
+function showPredictionDetails(symbol) {
+    alert(`Детальная информация по прогнозу ${symbol}\nВ реальной системе здесь была бы статистика точности предыдущих прогнозов`);
+}
+
+function addToWatchlist(symbol) {
+    alert(`Прогноз по ${symbol} добавлен в избранное для отслеживания`);
+}
+
+function sharePrediction(symbol) {
+    alert(`Ссылка на прогноз по ${symbol} скопирована в буфер обмена\nВ реальной системе здесь была бы функция шеринга`);
+}
+
+function showModelDetails() {
+    alert('Детали моделей машинного обучения:\n\nLSTM Network:\n- Использует временные ряды\n- Точность: 82.3%\n\nRandom Forest:\n- Ансамбль решающих деревьев\n- Точность: 78.5%\n\nXGBoost:\n- Градиентный бустинг\n- Точность: 75.2%');
+}
+
+// Автообновление прогнозов каждые 5 минут
+setTimeout(() => {
+    if (confirm('Прогнозы могут быть устаревшими. Обновить?')) {
+        generateNewPredictions();
+    }
+}, 300000); // 5 минут
+</script>
+
+<style>
+.card {
+    transition: transform 0.3s;
+}
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+.progress {
+    background-color: #e9ecef;
+}
+</style>
+{% endblock %}

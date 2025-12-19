@@ -1,0 +1,402 @@
+﻿{% extends "base.html" %}
+
+{% block title %}Дашборд{% endblock %}
+
+{% block content %}
+<h2 class="mt-3"><i class="bi bi-speedometer2"></i> Аналитический дашборд</h2>
+<p class="text-muted">Добро пожаловать, {{ username }} ({{ role }})</p>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-currency-exchange"></i> Топ криптовалюты</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Символ</th>
+                                <th>Название</th>
+                                <th>Цена</th>
+                                <th>Изменение</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for crypto in cryptos %}
+                            <tr>
+                                <td><strong>{{ crypto.symbol }}</strong></td>
+                                <td>{{ crypto.name }}</td>
+                                <td>${{ crypto.price }}</td>
+                                <td>
+                                    {% if crypto.change > 0 %}
+                                    <span style="color: green">+{{ crypto.change }}%</span>
+                                    {% else %}
+                                    <span style="color: red">{{ crypto.change }}%</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" 
+                                            onclick="showPrediction('{{ crypto.symbol }}', '{{ crypto.name }}', {{ crypto.price }})">
+                                        <i class="bi bi-magic"></i> Прогноз
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-info" 
+                                            onclick="showHistory('{{ crypto.symbol }}')">
+                                        <i class="bi bi-clock-history"></i> История
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="bi bi-lightning-charge"></i> Быстрые действия</h5>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-primary w-100 mb-2" onclick="generateAllPredictions()">
+                    <i class="bi bi-robot"></i> Все прогнозы
+                </button>
+                <button class="btn btn-warning w-100 mb-2" onclick="showRiskAnalysis()">
+                    <i class="bi bi-shield-check"></i> Анализ риска
+                </button>
+                
+                <hr>
+                
+                <h6>Быстрый прогноз:</h6>
+                <div class="input-group mb-3">
+                    <select class="form-select" id="cryptoSelect">
+                        {% for crypto in cryptos %}
+                        <option value="{{ crypto.symbol }}">{{ crypto.symbol }} - {{ crypto.name }}</option>
+                        {% endfor %}
+                    </select>
+                    <button class="btn btn-outline-success" onclick="quickPredict()">
+                        <i class="bi bi-magic"></i>
+                    </button>
+                </div>
+                
+                <div id="result" class="mt-2"></div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header bg-warning">
+                <h5 class="mb-0"><i class="bi bi-clock-history"></i> История</h5>
+            </div>
+            <div class="card-body">
+                <div id="historyList">
+                    <p class="text-muted">История прогнозов появится здесь</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для прогноза -->
+<div class="modal fade" id="predictionModal">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="modalTitle"></h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modalBody">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                <button type="button" class="btn btn-success" onclick="savePrediction()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Простые данные в памяти
+let predictions = JSON.parse(localStorage.getItem('predictions') || '[]');
+let currentPrediction = null;
+
+// Функция показа прогноза
+function showPrediction(symbol, name, price) {
+    // Генерация случайного прогноза
+    const direction = Math.random() > 0.5 ? 'up' : 'down';
+    const change = (Math.random() * 10).toFixed(2);
+    const newPrice = direction === 'up' 
+        ? (price * (1 + change/100)).toFixed(2)
+        : (price * (1 - change/100)).toFixed(2);
+    
+    // Сохраняем текущий прогноз
+    currentPrediction = {
+        symbol: symbol,
+        name: name,
+        price: price,
+        newPrice: newPrice,
+        direction: direction,
+        change: change,
+        date: new Date().toLocaleString()
+    };
+    
+    // Показываем в модальном окне
+    const modal = new bootstrap.Modal(document.getElementById('predictionModal'));
+    const directionText = direction === 'up' ? '📈 РОСТ' : '📉 ПАДЕНИЕ';
+    const colorClass = direction === 'up' ? 'text-success' : 'text-danger';
+    
+    document.getElementById('modalTitle').innerHTML = `<i class="bi bi-magic"></i> Прогноз для ${symbol}`;
+    document.getElementById('modalBody').innerHTML = `
+        <div class="text-center mb-3">
+            <h3 class="${colorClass}">${directionText}</h3>
+            <p class="text-muted">${name}</p>
+        </div>
+        
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6 text-center">
+                        <small>Текущая цена</small>
+                        <h5>$${price}</h5>
+                    </div>
+                    <div class="col-6 text-center">
+                        <small>Прогноз</small>
+                        <h5 class="${colorClass}">$${newPrice}</h5>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-12 text-center">
+                        <small>Изменение</small>
+                        <h5 class="${colorClass}">${direction === 'up' ? '+' : '-'}${change}%</h5>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="alert ${direction === 'up' ? 'alert-success' : 'alert-danger'}">
+            <strong>Рекомендация:</strong><br>
+            ${direction === 'up' 
+                ? 'Рекомендуется покупка. Цель: $' + (price * 1.1).toFixed(2)
+                : 'Рекомендуется продажа или ожидание.'}
+        </div>
+    `;
+    
+    modal.show();
+}
+
+// Сохранение прогноза
+function savePrediction() {
+    if (!currentPrediction) return;
+    
+    predictions.push(currentPrediction);
+    localStorage.setItem('predictions', JSON.stringify(predictions));
+    
+    updateHistory();
+    
+    // Закрываем модальное окно
+    bootstrap.Modal.getInstance(document.getElementById('predictionModal')).hide();
+    
+    // Показываем сообщение
+    showMessage('Прогноз сохранен!', 'success');
+}
+
+// Показать историю
+function showHistory(symbol) {
+    const filtered = predictions.filter(p => p.symbol === symbol);
+    
+    const modal = new bootstrap.Modal(document.getElementById('predictionModal'));
+    
+    if (filtered.length === 0) {
+        document.getElementById('modalTitle').innerHTML = `<i class="bi bi-clock-history"></i> История ${symbol}`;
+        document.getElementById('modalBody').innerHTML = `
+            <div class="text-center py-4">
+                <i class="bi bi-clock display-4 text-muted mb-3"></i>
+                <h5>История пуста</h5>
+                <p class="text-muted">Для ${symbol} нет сохраненных прогнозов.</p>
+            </div>
+        `;
+    } else {
+        let historyHTML = `<h5>История прогнозов для ${symbol}</h5>`;
+        
+        filtered.forEach(p => {
+            const directionIcon = p.direction === 'up' ? '📈' : '📉';
+            const colorClass = p.direction === 'up' ? 'text-success' : 'text-danger';
+            
+            historyHTML += `
+                <div class="card mb-2">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <strong>${directionIcon} ${p.direction === 'up' ? 'РОСТ' : 'ПАДЕНИЕ'}</strong>
+                                <div class="small">${p.date}</div>
+                            </div>
+                            <div class="text-end">
+                                <div class="${colorClass}">${p.direction === 'up' ? '+' : '-'}${p.change}%</div>
+                                <div class="small">$${p.newPrice}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        document.getElementById('modalTitle').innerHTML = `<i class="bi bi-clock-history"></i> История ${symbol} (${filtered.length})`;
+        document.getElementById('modalBody').innerHTML = historyHTML;
+    }
+    
+    modal.show();
+}
+
+// Быстрый прогноз
+function quickPredict() {
+    const select = document.getElementById('cryptoSelect');
+    const value = select.value;
+    const text = select.options[select.selectedIndex].text;
+    const symbol = value;
+    const name = text.split(' - ')[1];
+    
+    // Находим цену
+    let price = 100;
+    document.querySelectorAll('tbody tr').forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells[0].textContent.trim() === symbol) {
+            price = parseFloat(cells[2].textContent.replace('$', ''));
+        }
+    });
+    
+    showPrediction(symbol, name, price);
+}
+
+// Все прогнозы
+function generateAllPredictions() {
+    if (!confirm('Создать прогнозы для всех криптовалют?')) return;
+    
+    const rows = document.querySelectorAll('tbody tr');
+    let count = 0;
+    
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        const symbol = cells[0].textContent.trim();
+        const name = cells[1].textContent.trim();
+        const price = parseFloat(cells[2].textContent.replace('$', ''));
+        
+        // Создаем прогноз
+        const direction = Math.random() > 0.5 ? 'up' : 'down';
+        const change = (Math.random() * 8).toFixed(2);
+        const newPrice = direction === 'up' 
+            ? (price * (1 + change/100)).toFixed(2)
+            : (price * (1 - change/100)).toFixed(2);
+        
+        const prediction = {
+            symbol: symbol,
+            name: name,
+            price: price,
+            newPrice: newPrice,
+            direction: direction,
+            change: change,
+            date: new Date().toLocaleString()
+        };
+        
+        predictions.push(prediction);
+        count++;
+    });
+    
+    localStorage.setItem('predictions', JSON.stringify(predictions));
+    updateHistory();
+    showMessage(`Создано ${count} прогнозов!`, 'success');
+}
+
+// Анализ риска
+function showRiskAnalysis() {
+    const riskLevel = Math.random() > 0.7 ? 'Высокий' : Math.random() > 0.3 ? 'Средний' : 'Низкий';
+    const colorClass = riskLevel === 'Высокий' ? 'danger' : riskLevel === 'Средний' ? 'warning' : 'success';
+    
+    const modal = new bootstrap.Modal(document.getElementById('predictionModal'));
+    document.getElementById('modalTitle').innerHTML = `<i class="bi bi-shield-check"></i> Анализ риска`;
+    document.getElementById('modalBody').innerHTML = `
+        <div class="text-center mb-3">
+            <i class="bi bi-shield display-4 text-${colorClass} mb-3"></i>
+            <h3 class="text-${colorClass}">${riskLevel} риск</h3>
+        </div>
+        
+        <div class="alert alert-${colorClass}">
+            <strong>Рекомендации:</strong><br>
+            ${riskLevel === 'Высокий' 
+                ? '• Уменьшите позиции<br>• Добавьте стейблкоины<br>• Ожидайте коррекции'
+                : riskLevel === 'Средний' 
+                ? '• Диверсифицируйте портфель<br>• Установите стоп-лоссы<br>• Мониторьте рынок'
+                : '• Можно увеличить позиции<br>• Постепенно наращивайте объем<br>• Продолжайте мониторинг'}
+        </div>
+    `;
+    
+    modal.show();
+}
+
+// Обновление истории
+function updateHistory() {
+    const container = document.getElementById('historyList');
+    
+    if (predictions.length === 0) {
+        container.innerHTML = '<p class="text-muted">История прогнозов появится здесь</p>';
+        return;
+    }
+    
+    // Берем последние 5 прогнозов
+    const recent = predictions.slice(-5).reverse();
+    let html = '';
+    
+    recent.forEach(p => {
+        const directionIcon = p.direction === 'up' ? '📈' : '📉';
+        const colorClass = p.direction === 'up' ? 'text-success' : 'text-danger';
+        
+        html += `
+            <div class="alert alert-light border mb-2 p-2">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <strong>${p.symbol}</strong> ${directionIcon}
+                        <div class="small text-muted">${p.date.split(',')[0]}</div>
+                    </div>
+                    <div class="text-end">
+                        <div class="${colorClass}">${p.direction === 'up' ? '+' : '-'}${p.change}%</div>
+                        <div class="small">$${p.newPrice}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+// Показать сообщение
+function showMessage(text, type) {
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-info';
+    
+    // Создаем алерт
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        ${text}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(alertDiv);
+    
+    // Удаляем через 3 секунды
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 3000);
+}
+
+// Инициализация при загрузке
+document.addEventListener('DOMContentLoaded', function() {
+    updateHistory();
+});
+</script>
+{% endblock %}
